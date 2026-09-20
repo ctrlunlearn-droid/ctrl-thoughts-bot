@@ -94,15 +94,18 @@ def generate_content(niche: str, past_topics: list[str]) -> dict:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY set nahi hai")
-    model = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    # Use stable lower-capacity alternatives if a model is temporarily overloaded.
+    models = list(dict.fromkeys([model, "gemini-2.5-flash-lite", "gemini-3.6-flash"]))
     client = genai.Client(api_key=api_key)
 
     n_slides = random.choice([7, 8])
     last_err = None
     for attempt in range(1, 5):
+        active_model = models[(attempt - 1) % len(models)]
         try:
             resp = client.models.generate_content(
-                model=model,
+                model=active_model,
                 contents=_prompt(niche, n_slides, past_topics),
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -115,7 +118,10 @@ def generate_content(niche: str, past_topics: list[str]) -> dict:
         except Exception as e:  # rate limit, bad JSON, validation - sab par retry
             last_err = e
             wait = 5 * attempt
-            print(f"[generate] attempt {attempt} fail: {e}. {wait}s baad retry...")
+            print(
+                f"[generate] {active_model}, attempt {attempt} fail: {e}. "
+                f"{wait}s baad retry..."
+            )
             time.sleep(wait)
     raise RuntimeError(f"Content generate nahi ho paya: {last_err}")
 
