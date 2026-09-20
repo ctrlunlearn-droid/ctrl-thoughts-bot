@@ -94,7 +94,7 @@ def generate_content(niche: str, past_topics: list[str]) -> dict:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY set nahi hai")
-   model = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
     client = genai.Client(api_key=api_key)
 
     n_slides = random.choice([7, 8])
