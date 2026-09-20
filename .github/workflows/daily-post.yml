@@ -1,0 +1,75 @@
+name: Daily carousel post
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Generate slides only, do not post to Instagram"
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    - cron: "0 14 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Generate carousel
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        run: python main.py prepare
+
+      - name: Upload preview
+        if: ${{ inputs.dry_run == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: slides-preview
+          path: posts/
+
+      - name: Commit generated images
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add posts history.json
+          git commit -m "Generate Instagram carousel" || echo "Nothing to commit"
+          git push
+
+      - name: Wait for GitHub Pages/public files
+        if: ${{ inputs.dry_run != true }}
+        run: sleep 30
+
+      - name: Publish to Instagram
+        if: ${{ inputs.dry_run != true }}
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        run: python main.py publish
+
+      - name: Remove generated images
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          rm -rf posts
+          git add posts history.json
+          git commit -m "Clean up generated images" || echo "Nothing to commit"
+          git push
